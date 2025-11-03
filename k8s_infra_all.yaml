@@ -1,0 +1,293 @@
+# 1. 네임스페이스 (Namespaces) - 변경 없음
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: frontend-ns
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backend-ns
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: db-ns
+---
+# 2. Secret - JWT
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jwt-secret
+  namespace: backend-ns
+type: Opaque
+data:
+  JWT_SECRET_KEY: azhzcGFzcyM=
+---
+# ◀ [오류 최종 수정] 방금 주신 올바른 키 값으로 교체했습니다.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myweb-tls-secret
+  namespace: frontend-ns
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVTekNDQXJPZ0F3SUJBZ0lRZWdjaVg3NzR3aEpIK3ErQTlVU1VKekFOQmdrcWhraUc5dzBCQVFzRkFEQ0IKaHpFZU1Cd0dBMVVFQ2hNVmJXdGpaWEowSUdSbGRtVnNiM0J0Wlc1MElFTkJNUzR3TEFZRFZRUUxEQ1ZFUlZOTApWRTlRTFROQlJ6UXdVMHBjYUdrdE1USkFSRVZUUzFSUFVDMHpRVWMwTUZOS01UVXdNd1lEVlFRRERDeHRhMk5sCmNuUWdSRVZUUzFSUFVDMHpRVWMwTUZOS1hHaHBMVEV5UUVSRlUwdFVUMUF0TTBGSE5EQlRTakFlRncweU5URXgKTURFd05EUXpOREZhRncweU9EQXlNREV3TkRRek5ERmFNRmt4SnpBbEJnTlZCQW9USG0xclkyVnlkQ0JrWlhabApiRzl3YldWdWRDQmpaWEowYVdacFkyRjBaVEV5TUN3R0ExVUVDd3dsUkVWVFMxUlBVQzB6UVVjME1GTktYR2hwCkxURXlRRVJGVTB0VVQxQXRNMEZITkRCVFNqQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0MKZ2dFQkFPNWNGTzk3ckZQa2ZRZVYvQ2twL1VRK1k3VzN0Tkx0THJ5cjViQW1JamdEQkR3RFN4WVBFRklZM0FpWApFYlZlcTJEaXBxWmNGeUx6cEJoUE1GUjA0Z1BibGh2TmFTbEZYR0UzY2d5VmkveElrOThmNjlYWEgyQkY2ZlhuCklOVFlJd1gvOG1sRk1zcGV0anBJUktoNEI3cnVzNUJkTFlIN3IxSStVdGNobVlCeDh3ejNFSC9zS0xQRXVoZlEKdXpvbkJhMDU5QVovWno5NmpXUjRUSHExa2RsVDQraFQ3c2pWejRkL2NtUWI2SUkwZlVoREhsRThyeXZ6SFJPdwo1ZEFhL29oTEFFcW5VUUo1cEYrbHRERGtNOTU0U3U3WnFZT3FFRzFTUDJIcVFiY3plbHRHQTlEbll3WUNEcFZNCnR2UU5OMSt2TzczR2M4UzJYeC9vU0YzR3Nnc0NBd0VBQWFOZ01GNHdEZ1lEVlIwUEFRSC9CQVFEQWdXZ01CTUcKQTFVZEpRUU1NQW9HQ0NzR0FRVUZCd01CTUI4R0ExVWRJd1FZTUJhQUZCMzZCRTY3WUVqdUxtK204OFZEVmtaNApNYnBOTUJZR0ExVWRFUVFQTUEyQ0MyMTVkMlZpTG14dlkyRnNNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJnUUEzCnUzTTdvcDhLY1k4S0ZldmhBNGZIMnlKUFloendrQ1FvMmNUbTU4ZmFKd1J3MkxlbWExU1NFQ3JFRW8zS3p5QlkKNkdUT1lFbTI2dGpKYmhraGpleU9zZlRta0hUN2taNW8rSkVnQmcxT0FWcXdMNUxTRDNscHpnWXRqRnVCWmJaZgpKQ0tRVlpHQlhyT1ZYTE5xdHJzRnI0Qm5ZaUZmQjFlOTNpNGR5OUNxQnk5a1Fvb0ZOVVdueTV6b0NyTXFTNjFTClhlWFdmSzFvVFgvSENHWG1rOU9HTFRpTzRZZ21ReG91bCtiZU1kR3hlMERCK3R0MWs2VHV4azJYMWhiZjJ2dTIKRTArcTJRY05icWx6Z3pFRWFpOUNWZ2V4OXhRMHpDSTl4V1VBL0g5MlZzL1hGQ3Urb0VVa0lLM2Z5S1VEUjZGYwozRjRhK3RYWFZEMGJKa0dlbzhUM2RBam12NTlIamduSWdIKzRCejd3RmoxSG85M0RVYkVVNkhsTlpYK3R1b2R1CmFBRVdpdlRCRy85VHZMR052N05rQjVCZTVMcjk5SktESDMzQ09nQVVIVkx4V2ZKOXQwa2xSRkx2WTk1N25MYjUKRjFWTTlKaG90VkcreUhUdVV2eE5VUE9HNy9Fa3dITlRoT3NzdExtZk50MWxtd252Q0NjN3BOMDlSOFlzdzM0PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+  # ◀ 방금 주신 올바른 값
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2Z0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktnd2dnU2tBZ0VBQW9JQkFRRHVYQlR2ZTZ4VDVIMEgKbGZ3cEtmMUVQbU8xdDdUUzdTNjhxK1d3SmlJNEF3UThBMHNXRHhCU0dOd0lseEcxWHF0ZzRxYW1YQmNpODZRWQpUekJVZE9JRDI1WWJ6V2twUlZ4aE4zSU1sWXY4U0pQZkgrdlYxeDlnUmVuMTV5RFUyQ01GLy9KcFJUTEtYclk2ClNFU29lQWU2N3JPUVhTMkIrNjlTUGxMWElabUFjZk1NOXhCLzdDaXp4TG9YMExzNkp3V3RPZlFHZjJjL2VvMWsKZUV4NnRaSFpVK1BvVSs3STFjK0hmM0prRytpQ05IMUlReDVSUEs4cjh4MFRzT1hRR3Y2SVN3QktwMUVDZWFSZgpwYlF3NURQZWVFcnUyYW1EcWhCdFVqOWg2a0czTTNwYlJnUFE1Mk1HQWc2VlRMYjBEVGRmcnp1OXhuUEV0bDhmCjZFaGR4cklMQWdNQkFBRUNnZ0VCQU10L3NpQUQ1a3g1ZG9WVGQ4VnRJOTF2cHBFdUZpTStlL2g0aWRDcHZlMDAKSmhsV2RuU094OUJQaVF1TWJvSDZJVGJHU3FFZFhtTm92MkJCdTNGZm1OYlNVb1hLQ1U1QytXdkdlb2hqNU8rdQp4eEJub0dFaEdKaUpHQVhwSGc2WnVNMFdoMDk0MUxRUnlHSlo4TVFrTmZWU2RkdDZzYStYd1VibURyTzg2K0RMCndtTnZuR2Vad1U0czI0RnA3WnJqNFdwSWMrOEVPKzIwUU54V284eXBKMFVQUEdXSjV2S1JyWjU0UDZ5TGdtUUkKVS9LdVZTVmwrNkdmNWhiNTlLdUViWkxySkp2aWJJbzZxT3E2VU95by91Q3VvWTNHYis4a2J0Si9RTUZUL1ZKVQoxVFptMFlaem5rS3oxMFRoM0VLOFdYYTNnbkwwNTA5aHo1MENDMVpreFlFQ2dZRUEvQ2tMM3RKNzB6UWFRZytaCjdNUWtSc004NU4yd2hYOTA4T2d2T1BQRFNzWGFNSXlSK1pES1k5NmxUSXlIejU3V3h3MFdVaURiRWtzek1zeXAKMUtSOTB2SW4xT29NbVFkeGUzSHRORzNZREkzZ1EzY0ttZHAvOHc5a2MvY0cyUE1WeUdETHRCeldJRkhxYnRxVApZVldqVCt1NUFSRHVPWVNrZ3hZdHR2UGNVVDhDZ1lFQThmMDlIS0p1Qmh1SGJxdHdEc2xpbHJ1SDhEdUM2dVJVCndNcnllVEhTZlFscW5SVURJSC9rbnVjZmppTmVTOFNrMU1mZG9HVWNrMERRM1JHcEYwdHFzS1FCcmhjbG45YUsKNUFSNURMbFd4VCtNWVJhT0kyYVp3emdYSkJFZDFWL1FnSU5qOG9adjBoV1hzQ2ttUWxnK1NueHpBTGkrVnNmbAp5MW8vVXlaK0lEVUNnWUExS1k0NEh4WStFL2tKUG5MTVNSb0ExVDZzWGRUT2dHMnVNTFZzQTNDRC9peWZHYlBZCjh0N0lxWE1lTFc2Z3BqTlA2Z0Z2dFQrYW5zSWZqcWlyalRaOTE5SHdBSnhCVXlGb3pqOGRVNTgrSGxkT3dmVTUKTktqUEhNcW43RWZFUzVPbkdFazZJdTQrQ0NjdDBlVktteHlBU0FsTUlUNm9YNyt6WjJTaDhzM2JUd0tCZ0VXTQoxMGVubDUvQndjY1pGdmZwQWFENC9UVWFwYUlGUmlhekxjV1BnRVBYdFFDNHpWRkY4TnVLNmhMY0wzbnZac0NSClFTMmNZZjRnbnVjcThFSjF0cEJXVXZWS1NkSUt3NWlOZ0kwYnA4akJYd040akJtNG4zRHdhaFkvcFNkeWhtYXAKWE15VHZ3Zk9sTzVZcFZwa0ttTVdLYWVIY1kxWG5zQTNqQVBHQ0hJUkFvR0JBTkVyalNwK2k2UnU1VXBvMGNGYwpNWnhWZTNEcytYa2RKdGlxNmJYVisyZXYzY2VmNXVLY2FTTFZvVE1jTVVxc2JHakMrcGRYcGFsbEFnUWp0S1lnCjQ4MnZGMmpRWHdCQXVsb0QvL081bTliRXk2aDFTQzVaayszYnp4WWtSM2FDNnA3WWhhZEpRM1J2U3VLQWFkTVUKRWl5R1FxL0ZsWXJuSlpSSENhZUxmaytZCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K
+---
+# ◀ [추가] 2. MongoDB 노드 간 인증을 위한 키파일 Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-keyfile-secret
+  namespace: db-ns
+type: Opaque
+data:
+  keyfile: Y3lCait4ZCtXY3lQcnFwc3J0clhWeG5tTXdaVDRNUGxyKzR0a1Z5bVd3cFJzN0hpMllUN2U1eG9qSWhjb0MKNG00RkVtSjlhWlZ4UjVlYWpXQkFvSXRvVnZNVGRsNmRleDFKdWNTb05qZlduYk04aGlhWGRZME5CbE5HTkMKUjN5d05UaHlSbmtoNnd5Z29VdkRMMTgvYlNqV1FhQ0JzQW9LdXJ1T0cxMWVlN2ZObWMrY1hwcWdYc2V6cAo4Mng0bStiMGFxNHQxYitSbjVoT05hWnNZWFdFZmFkQkt0a0FhUFg0cW5QeXk5ZEVjVjUvTkl4VjFUMmJ3cQpnbjZoQm5sZVFvYlArM3YxK0l3T0tHNFZlNHR5b3o1bE9yQys3azVwMFR1K3NDbVRhQmU2Qk9jOVF3PT0K
+---
+# 4. ConfigMaps
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: frontend-ns
+data:
+  GUESTBOOK_API_ADDR: "http://backend-external-svc.frontend-ns.svc.cluster.local:8000"
+---
+# ◀ [수정] 4. Backend ConfigMap (DB 주소 변경)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: backend-ns
+data:
+  # ◀ [핵심] DB 접속 주소를 Replica Set 형태로 변경
+  GUESTBOOK_DB_ADDR: "mongodb://mongodb-0.mongo-svc.db-ns.svc.cluster.local:27017,mongodb-1.mongo-svc.db-ns.svc.cluster.local:27017,mongodb-2.mongo-svc.db-ns.svc.cluster.local:27017/guestbook?replicaSet=rs0"
+---
+# 5. Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: frontend-ns
+spec:
+  selector:
+    app: frontend
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: backend-ns
+spec:
+  selector:
+    app: backend
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+---
+# ◀ [수정] 5. DB Service를 Headless Service로 변경
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-svc
+  namespace: db-ns
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  clusterIP: None
+  selector:
+    app: db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-external-svc
+  namespace: frontend-ns
+spec:
+  type: ExternalName
+  externalName: backend-svc.backend-ns.svc.cluster.local
+---
+# 6. Deployments (frontend, backend)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: frontend-ns
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: frontend
+        image: 192.168.0.227/frontend/frontend:4.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: GUESTBOOK_API_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: GUESTBOOK_API_ADDR
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: backend-ns
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      initContainers:
+      # ◀ [수정] DB 확인 대상을 Headless Service의 첫 번째 Pod DNS로 변경
+      - name: wait-for-db
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z -w 2 mongodb-0.mongo-svc.db-ns 27017; do echo "Waiting for MongoDB..."; sleep 2; done;']
+      containers:
+      - name: backend
+        image: 192.168.0.227/backend/backend:4.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: GUESTBOOK_DB_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: GUESTBOOK_DB_ADDR
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: JWT_SECRET_KEY
+---
+# ◀ [수정] 7. DB Deployment를 StatefulSet으로 변경
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: db-ns
+spec:
+  serviceName: "mongo-svc"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: mongo:8
+          ports:
+            - containerPort: 27017
+          command:
+            - "mongod"
+            - "--replSet"
+            - "rs0"
+            - "--keyFile"
+            - "/etc/mongo-keyfile/keyfile"
+            - "--bind_ip_all"
+            - "--auth"
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-keyfile-volume
+              mountPath: /etc/mongo-keyfile
+              readOnly: true
+      volumes:
+        - name: mongo-keyfile-volume
+          secret:
+            secretName: mongo-keyfile-secret
+            items:
+              - key: keyfile
+                path: keyfile
+                mode: 0400
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        # ◀ [핵심] 이전에 생성한 StorageClass 이름 지정
+        storageClassName: "nfs-storage"
+---
+# 8. Ingress - 변경 없음
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-ingress
+  namespace: frontend-ns
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - myweb.local
+    secretName: myweb-tls-secret
+  rules:
+  - host: myweb.local
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-external-svc
+            port:
+              number: 8000
+      - path: /register
+        pathType: Exact
+        backend:
+          service:
+            name: backend-external-svc
+            port:
+              number: 8000
+      - path: /login
+        pathType: Exact
+        backend:
+          service:
+            name: backend-external-svc
+            port:
+              number: 8000
+      - path: /reviews
+        pathType: Exact
+        backend:
+          service:
+            name: backend-external-svc
+            port:
+              number: 8000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-svc
+            port:
+              number: 8000
