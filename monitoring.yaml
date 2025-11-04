@@ -1,0 +1,655 @@
+# 1. 모니터링용 네임스페이스
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+# 2. Prometheus가 노드 메트릭을 수집할 수 있도록 RBAC 권한 설정
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-sa
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-cr
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/metrics
+  - services
+  - endpoints
+  - pods
+  - nodes/proxy
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus-cr
+subjects:
+- kind: ServiceAccount
+  name: prometheus-sa
+  namespace: monitoring
+---
+# 3. Kube-State-Metrics RBAC 설정
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-state-metrics-cr
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - pods
+  - services
+  - resourcequotas
+  - replicationcontrollers
+  - limitranges
+  - persistentvolumeclaims
+  - persistentvolumes
+  - namespaces
+  - endpoints
+  - configmaps
+  - secrets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+  - cronjobs
+  - jobs
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["autoscaling"]
+  resources:
+  - horizontalpodautoscalers
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["policy"]
+  resources:
+  - poddisruptionbudgets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources:
+  - storageclasses
+  - volumeattachments
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - networkpolicies
+  - ingresses
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-state-metrics-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-state-metrics-cr
+subjects:
+- kind: ServiceAccount
+  name: kube-state-metrics
+  namespace: monitoring
+---
+# 4. Node Exporter (DaemonSet)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      tolerations:
+      - effect: "NoSchedule"
+        key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+      - effect: "NoSchedule"
+        key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+      hostPID: true
+      hostIPC: true
+      hostNetwork: true
+      containers:
+      - name: node-exporter
+        image: prom/node-exporter:v1.7.0
+        ports:
+        - containerPort: 9100
+          protocol: TCP
+          name: http
+        resources:
+          limits:
+            memory: "256Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly:  true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+---
+# 5. Node Exporter Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter-svc
+  namespace: monitoring
+  labels:
+    app: node-exporter
+spec:
+  selector:
+    app: node-exporter
+  ports:
+  - name: http
+    port: 9100
+    targetPort: 9100
+---
+# 6. Prometheus 설정 파일 (ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_label_app]
+          action: keep
+          regex: node-exporter
+
+      - job_name: 'kubernetes-cadvisor'
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+        - role: node
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+      - job_name: 'kubernetes-kube-state-metrics'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: kube-state-metrics-svc
+---
+# 7. Prometheus Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus-sa
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.51.1
+        args:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus/"
+        ports:
+        - containerPort: 9090
+        resources:
+          limits:
+            memory: "2Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: prometheus-config-volume
+          mountPath: /etc/prometheus/
+        - name: prometheus-storage-volume
+          mountPath: /prometheus/
+      volumes:
+      - name: prometheus-config-volume
+        configMap:
+          name: prometheus-config
+      - name: prometheus-storage-volume
+        emptyDir: {}
+---
+# 8. Prometheus Service (Grafana가 사용)
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-svc
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - name: web
+    port: 9090
+    targetPort: 9090
+---
+# 9. Grafana 데이터 소스 설정 (ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  datasources.yaml: |-
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus-svc.monitoring.svc.cluster.local:9090
+      isDefault: true
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki-svc.monitoring.svc.cluster.local:3100
+      isDefault: false
+---
+# 10. Grafana Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.4.2
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_DATASOURCES_PATH
+          value: /etc/grafana/datasources
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: k8spass#
+        resources:
+          limits:
+            memory: "1Gi"
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: grafana-datasources-volume
+          mountPath: /etc/grafana/datasources
+      volumes:
+      - name: grafana-datasources-volume
+        configMap:
+          name: grafana-datasources
+---
+# 11. Grafana Service (Ingress가 사용)
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-svc
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+---
+# 12. Grafana Ingress (외부 접속용)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: monitoring
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: grafana.k8s.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-svc
+            port:
+              number: 3000
+---
+# 13. Kube-State-Metrics Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-state-metrics
+  template:
+    metadata:
+      labels:
+        app: kube-state-metrics
+    spec:
+      serviceAccountName: kube-state-metrics
+      containers:
+      - name: kube-state-metrics
+        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.1
+        ports:
+        - containerPort: 8080
+          name: http
+---
+# 14. Kube-State-Metrics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-state-metrics-svc
+  namespace: monitoring
+  labels:
+    app: kube-state-metrics
+spec:
+  selector:
+    app: kube-state-metrics
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+# 15. ◀ [최종 수정] Loki 설정 파일 (ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: monitoring
+data:
+  loki-config.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+
+    ingester:
+      lifecycler:
+        address: 127.0.0.1
+        ring:
+          kvstore:
+            store: inmemory
+          replication_factor: 1
+      chunk_idle_period: 1m
+      chunk_target_size: 1048576
+      chunk_retain_period: 30s
+      # ◀ [추가] WAL(Write-Ahead Log) 디렉토리 권한 문제 해결
+      wal:
+        enabled: true
+        dir: /loki/wal # ◀ 쓰기 권한이 있는 /loki 볼륨 사용
+
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /loki/boltdb-shipper-active
+        cache_location: /loki/boltdb-shipper-cache
+      filesystem:
+        directory: /loki/chunks
+
+    compactor:
+      working_directory: /loki/boltdb-shipper-compactor
+      compaction_interval: 10m
+      retention_enabled: false
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+
+    limits_config:
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      allow_structured_metadata: false
+---
+# 16. Loki Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+        - name: loki
+          image: grafana/loki:latest
+          args:
+            - "-config.file=/etc/loki/loki-config.yaml"
+          ports:
+            - containerPort: 3100
+              name: http
+          volumeMounts:
+            - name: loki-config-volume
+              mountPath: /etc/loki/
+            - name: loki-storage-volume
+              mountPath: /loki
+      volumes:
+        - name: loki-config-volume
+          configMap:
+            name: loki-config
+        - name: loki-storage-volume
+          emptyDir: {}
+---
+# 17. Loki Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-svc
+  namespace: monitoring
+spec:
+  selector:
+    app: loki
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3100
+---
+# 18. Promtail RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail-sa
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail-cr
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: promtail-cr
+subjects:
+- kind: ServiceAccount
+  name: promtail-sa
+  namespace: monitoring
+---
+# 19. Promtail 설정 파일 (ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail-config.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: http://loki-svc.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+    scrape_configs:
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+        - role: pod
+      pipeline_stages:
+        - docker: {}
+      relabel_configs:
+        - source_labels:
+            - __meta_kubernetes_pod_node_name
+            - __meta_kubernetes_pod_uid
+            - __meta_kubernetes_container_name
+          action: replace
+          target_label: __path__
+          replacement: /var/log/pods/${1}_${2}_${3}/*.log
+        - source_labels:
+            - __meta_kubernetes_namespace
+          target_label: namespace
+        - source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: pod
+        - source_labels:
+            - __meta_kubernetes_pod_labels_app
+          target_label: app
+---
+# 20. Promtail (DaemonSet)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app: promtail
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      serviceAccountName: promtail-sa
+      tolerations:
+      - effect: "NoSchedule"
+        key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+      - effect: "NoSchedule"
+        key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+      containers:
+      - name: promtail
+        image: grafana/promtail:latest
+        args:
+        - -config.file=/etc/promtail/promtail-config.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/promtail
+        - name: pod-logs
+          mountPath: /var/log/pods
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: promtail-config
+      - name: pod-logs
+        hostPath:
+          path: /var/log/pods

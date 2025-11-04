@@ -1,0 +1,110 @@
+# mongodb-setup-fixed.yaml
+
+# 1. 네임스페이스
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: db-ns
+---
+# 2. Keyfile Secret (노드 간 통신 인증용)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-keyfile-secret
+  namespace: db-ns
+type: Opaque
+data:
+  keyfile: Y3lCait4ZCtXY3lQcnFwc3J0clhWeG5tTXdaVDRNUGxyKzR0a1Z5bVd3cFJzN0hpMllUN2U1eG9qSWhjb0MKNG00RkVtSjlhWlZ4UjVlYWpXQkFvSXRvVnZNVGRsNmRleDFKdWNTb05qZlduYk04aGlhWGRZME5CbE5HTkMKUjN5d05UaHlSbmtoNnd5Z29VdkRMMTgvYlNqV1FhQ0JzQW9LdXJ1T0cxMWVlN2ZObWMrY1hwcWdYc2V6cAo4Mng0bStiMGFxNHQxYitSbjVoT05hWnNZWFdFZmFkQkt0a0FhUFg0cW5QeXk5ZEVjVjUvTkl4VjFUMmJ3cQpnbjZoQm5sZVFvYlArM3YxK0l3T0tHNFZlNHR5b3o1bE9yQys3azVwMFR1K3NDbVRhQmU2Qk9jOVF3PT0K
+---
+# 3. 최고 관리자 계정 Secret (Root User: kevin/k8spass#)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-root-secret
+  namespace: db-ns
+type: Opaque
+data:
+  username: a2V2aW4= # Base64 for 'kevin'
+  password: azhzcGFzcyM= # Base64 for 'k8spass#'
+---
+# 4. Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-svc
+  namespace: db-ns
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  clusterIP: None
+  selector:
+    app: db
+---
+# 5. MongoDB StatefulSet (YAML 구조 및 Root User 환경 변수 수정)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: db-ns
+spec:
+  serviceName: "mongo-svc"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: mongo:8
+          ports:
+            - containerPort: 27017
+          command:
+            - "mongod"
+            - "--replSet"
+            - "rs0"
+            - "--keyFile"
+            - "/etc/mongo-keyfile/keyfile"
+            - "--bind_ip_all"
+            - "--auth"
+          env:
+            # MONGO_INITDB_ROOT_USERNAME/PASSWORD를 통해 최고 관리자 계정 생성
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-root-secret
+                  key: username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-root-secret
+                  key: password
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-keyfile-volume
+              mountPath: /etc/mongo-keyfile
+              readOnly: true
+      # ◀ [수정] 'volumes'는 'containers'와 같은 들여쓰기 레벨입니다.
+      volumes:
+        - name: mongo-keyfile-volume
+          secret:
+            secretName: mongo-keyfile-secret
+            items:
+              - key: keyfile
+                path: keyfile
+                mode: 0400
+  # ◀ [수정] 'volumeClaimTemplates'는 'template'과 같은 들여쓰기 레벨입니다.
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: "nfs-storage"
