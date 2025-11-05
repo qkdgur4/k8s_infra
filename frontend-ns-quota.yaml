@@ -1,0 +1,18 @@
+# frontend-ns-quota.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: frontend-quota
+  namespace: frontend-ns
+spec:
+  hard:
+    # 3 Pod * 200m Limit = 600m. 넉넉하게 1 Core 제한.
+    limits.cpu: "1"
+    # 3 Pod * 200Mi Limit = 600Mi. 넉넉하게 1.5 GiB 제한.
+    limits.memory: "1500Mi"
+    # 3 Pod * 100m Request = 300m. 넉넉하게 0.5 Core 제한.
+    requests.cpu: "500m"
+    # 3 Pod * 100Mi Request = 300Mi. 넉넉하게 512 MiB 제한.
+    requests.memory: "512Mi"
+    pods: "10"
+    services: "5"

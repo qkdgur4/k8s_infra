@@ -4,7 +4,7 @@ kind: Namespace
 metadata:
   name: monitoring
 ---
-# 2. Prometheus가 노드 메트릭을 수집할 수 있도록 RBAC 권한 설정
+# 2. Prometheus RBAC (cAdvisor 접근용 nodes/proxy 포함)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -43,7 +43,7 @@ subjects:
   name: prometheus-sa
   namespace: monitoring
 ---
-# 3. Kube-State-Metrics RBAC 설정
+# 3. Kube-State-Metrics RBAC (쿠버네티스 오브젝트 수집용)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -114,7 +114,108 @@ subjects:
   name: kube-state-metrics
   namespace: monitoring
 ---
-# 4. Node Exporter (DaemonSet)
+# 4. Promtail RBAC (로그 수집기용)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail-sa
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail-cr
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: promtail-cr
+subjects:
+- kind: ServiceAccount
+  name: promtail-sa
+  namespace: monitoring
+---
+# 5. [수정] NFS 영구 볼륨 (PV) - Prometheus용
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-pv
+  labels:
+    app: prometheus-storage # ⬅️ [추가] PVC와 짝지을 라벨
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  nfs:
+    server: 192.168.0.215
+    path: "/nfs-storage/prometheus"
+---
+# 6. [수정] NFS 영구 볼륨 (PV) - Loki용
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: loki-pv
+  labels:
+    app: loki-storage # ⬅️ [추가] PVC와 짝지을 라벨
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  nfs:
+    server: 192.168.0.215
+    path: "/nfs-storage/loki"
+---
+# 7. [수정] 영구 볼륨 요청 (PVC) - Prometheus용
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-pvc
+  namespace: monitoring
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  selector: # ⬅️ [추가] 'prometheus-storage' 라벨이 있는 PV하고만 연결
+    matchLabels:
+      app: prometheus-storage
+---
+# 8. [수정] 영구 볼륨 요청 (PVC) - Loki용
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-pvc
+  namespace: monitoring
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  selector: # ⬅️ [추가] 'loki-storage' 라벨이 있는 PV하고만 연결
+    matchLabels:
+      app: loki-storage
+---
+# 9. Node Exporter (DaemonSet) - 마스터 노드 포함
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -169,7 +270,7 @@ spec:
         hostPath:
           path: /sys
 ---
-# 5. Node Exporter Service
+# 10. Node Exporter Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -185,7 +286,7 @@ spec:
     port: 9100
     targetPort: 9100
 ---
-# 6. Prometheus 설정 파일 (ConfigMap)
+# 11. Prometheus 설정 파일 (ConfigMap)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -234,7 +335,7 @@ data:
           action: keep
           regex: kube-state-metrics-svc
 ---
-# 7. Prometheus Deployment
+# 12. Prometheus Deployment (NFS PVC 사용)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -275,9 +376,10 @@ spec:
         configMap:
           name: prometheus-config
       - name: prometheus-storage-volume
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: prometheus-pvc
 ---
-# 8. Prometheus Service (Grafana가 사용)
+# 13. Prometheus Service (Grafana가 사용)
 apiVersion: v1
 kind: Service
 metadata:
@@ -291,7 +393,7 @@ spec:
     port: 9090
     targetPort: 9090
 ---
-# 9. Grafana 데이터 소스 설정 (ConfigMap)
+# 14. Grafana 데이터 소스 설정 (ConfigMap)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -312,7 +414,7 @@ data:
       url: http://loki-svc.monitoring.svc.cluster.local:3100
       isDefault: false
 ---
-# 10. Grafana Deployment
+# 15. Grafana Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -352,7 +454,7 @@ spec:
         configMap:
           name: grafana-datasources
 ---
-# 11. Grafana Service (Ingress가 사용)
+# 16. Grafana Service (Ingress가 사용)
 apiVersion: v1
 kind: Service
 metadata:
@@ -366,7 +468,7 @@ spec:
     port: 3000
     targetPort: 3000
 ---
-# 12. Grafana Ingress (외부 접속용)
+# 17. Grafana Ingress (외부 접속용)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -386,7 +488,7 @@ spec:
             port:
               number: 3000
 ---
-# 13. Kube-State-Metrics Deployment
+# 18. Kube-State-Metrics Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -410,7 +512,7 @@ spec:
         - containerPort: 8080
           name: http
 ---
-# 14. Kube-State-Metrics Service
+# 19. Kube-State-Metrics Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -426,7 +528,7 @@ spec:
     port: 8080
     targetPort: 8080
 ---
-# 15. ◀ [최종 수정] Loki 설정 파일 (ConfigMap)
+# 20. Loki 설정 파일 (ConfigMap)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -449,10 +551,9 @@ data:
       chunk_idle_period: 1m
       chunk_target_size: 1048576
       chunk_retain_period: 30s
-      # ◀ [추가] WAL(Write-Ahead Log) 디렉토리 권한 문제 해결
       wal:
         enabled: true
-        dir: /loki/wal # ◀ 쓰기 권한이 있는 /loki 볼륨 사용
+        dir: /loki/wal
 
     schema_config:
       configs:
@@ -483,7 +584,7 @@ data:
       reject_old_samples_max_age: 168h
       allow_structured_metadata: false
 ---
-# 16. Loki Deployment
+# 21. Loki Deployment (NFS PVC 사용)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -519,9 +620,10 @@ spec:
           configMap:
             name: loki-config
         - name: loki-storage-volume
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: loki-pvc
 ---
-# 17. Loki Service
+# 22. Loki Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -535,82 +637,7 @@ spec:
       port: 3100
       targetPort: 3100
 ---
-# 18. Promtail RBAC
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: promtail-sa
-  namespace: monitoring
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: promtail-cr
-rules:
-- apiGroups: [""]
-  resources:
-  - nodes
-  - services
-  - endpoints
-  - pods
-  verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: promtail-crb
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: promtail-cr
-subjects:
-- kind: ServiceAccount
-  name: promtail-sa
-  namespace: monitoring
----
-# 19. Promtail 설정 파일 (ConfigMap)
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: promtail-config
-  namespace: monitoring
-data:
-  promtail-config.yaml: |
-    server:
-      http_listen_port: 9080
-      grpc_listen_port: 0
-
-    positions:
-      filename: /tmp/positions.yaml
-
-    clients:
-      - url: http://loki-svc.monitoring.svc.cluster.local:3100/loki/api/v1/push
-
-    scrape_configs:
-    - job_name: kubernetes-pods
-      kubernetes_sd_configs:
-        - role: pod
-      pipeline_stages:
-        - docker: {}
-      relabel_configs:
-        - source_labels:
-            - __meta_kubernetes_pod_node_name
-            - __meta_kubernetes_pod_uid
-            - __meta_kubernetes_container_name
-          action: replace
-          target_label: __path__
-          replacement: /var/log/pods/${1}_${2}_${3}/*.log
-        - source_labels:
-            - __meta_kubernetes_namespace
-          target_label: namespace
-        - source_labels:
-            - __meta_kubernetes_pod_name
-          target_label: pod
-        - source_labels:
-            - __meta_kubernetes_pod_labels_app
-          target_label: app
----
-# 20. Promtail (DaemonSet)
+# 23. Promtail (DaemonSet)
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -653,3 +680,45 @@ spec:
       - name: pod-logs
         hostPath:
           path: /var/log/pods
+---
+# 24. Promtail 설정 파일 (ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail-config.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: http://loki-svc.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+    scrape_configs:
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+        - role: pod
+      pipeline_stages:
+        - docker: {}
+      relabel_configs:
+        - source_labels:
+            - __meta_kubernetes_pod_node_name
+            - __meta_kubernetes_pod_uid
+            - __meta_kubernetes_container_name
+          action: replace
+          target_label: __path__
+          replacement: /var/log/pods/${1}_${2}_${3}/*.log
+        - source_labels:
+            - __meta_kubernetes_namespace
+          target_label: namespace
+        - source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: pod
+        - source_labels:
+            - __meta_kubernetes_pod_labels_app
+          target_label: app

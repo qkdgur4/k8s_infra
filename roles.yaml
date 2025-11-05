@@ -1,0 +1,20 @@
+# roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: backend-ns  # 👈 백엔드 네임스페이스
+  name: ops-editor-role
+rules:
+- apiGroups: ["", "apps", "extensions"] # Core, Apps, Extensions
+  resources: ["*"] # 모든 리소스
+  verbs: ["*"]     # 모든 행동 (get, list, watch, create, delete, patch...)
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: backend-ns  # 👈 백엔드 네임스페이스
+  name: dev-reader-role
+rules:
+- apiGroups: ["", "apps"]
+  resources: ["pods", "pods/log", "services", "deployments", "replicasets"]
+  verbs: ["get", "list", "watch"] # 👈 오직 읽기 및 로그 조회만

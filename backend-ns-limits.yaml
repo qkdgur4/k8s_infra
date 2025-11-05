@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: backend-limits
+  namespace: backend-ns
+spec:
+  limits:
+  - default:
+      cpu: 200m
+      memory: 200Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 100Mi
+    max:
+      cpu: 500m # 컨테이너 단일 최대치 (Sidecar 포함 총합은 이보다 큼)
+      memory: 512Mi
+    type: Container
+  - max: # 👈 Pod 레벨의 총 CPU 제한
+      cpu: 350m
+    min:
+      cpu: 50m
+    type: Pod
